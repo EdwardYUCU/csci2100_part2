@@ -2,15 +2,17 @@ from array import array
 from memory import *
 import random
 
+
 def test_file():
-    data = list(random.random()* 100 for _ in range(10))
+    data = list(random.random() * 100 for _ in range(10))
     f = File("f", data)
     a = f.read(2, 5)
-    assert a == array('d', data[2:7])
+    assert a == array("d", data[2:7])
 
-    modi = list(random.random()  *100 for _ in range(3))
-    f.write(3, 6, memory_ptr(memoryview(array('d',modi)), 0))
-    assert f[3:6] == array('d', modi)
+    modi = list(random.random() * 100 for _ in range(3))
+    f.write(3, 6, memory_ptr(memoryview(array("d", modi)), 0))
+    assert f[3:6] == array("d", modi)
+
 
 def test_secstore():
     input_file = "input/inputs.txt"
@@ -24,5 +26,3 @@ def test_secstore():
             output.append(float(line))
 
     assert output == sec["output_sort"]
-
-

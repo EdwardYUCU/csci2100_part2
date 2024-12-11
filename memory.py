@@ -4,6 +4,7 @@ from copy import copy
 import collections.abc as abc
 from dataclasses import dataclass
 
+
 @dataclass
 class memory_ptr:
     memory: memoryview
@@ -13,7 +14,7 @@ class memory_ptr:
 class File(abc.MutableSequence):
     """The abstraction of the data in SecStore"""
 
-    def __init__(self, name: str, data: abc.Iterable):
+    def __init__(self, name: str, data: abc.Iterable = (), /):
         """Initial a NAME object with DATA"""
         self._data = array("d", list(data))
         self._name = name
@@ -41,7 +42,9 @@ class File(abc.MutableSequence):
         return copy(self[start : start + size])
 
     def write(self, start: int, size: int, data: memory_ptr):
-        self[start : start + size] = data.memory.obj
+        self[start : start + size] = data.memory.obj[
+            data.start_address : data.start_address + size
+        ]
 
 
 class SecStore(abc.MutableMapping):
@@ -96,13 +99,13 @@ class SecStore(abc.MutableMapping):
         self[file_name].write(start, size, data)
 
 
-class BufferPool(abc.MutableSequence):
+class BufferPool:
     """A limited main memory"""
 
-    def __init__(self, B, b):
+    def __init__(self, B, b, /):
         self.B = B
         self.b = b
-        self._memory = array("d", [0] * B)
+        self._memory = memoryview(array("d", [0] * B))
         self.status = [True] * (B // b)
 
     def __len__(self):
@@ -114,18 +117,12 @@ class BufferPool(abc.MutableSequence):
     def __setitem__(self, index, obj):
         self._memory[index] = obj
 
-    def __delitem__(self, index):
-        del self._memory[index]
-
-    def insert(self, index, obj):
-        self._memory.insert(index, obj)
-
 
 class SecStoreManager:
     """Manage the SecStore for read and write operations.
     Also for recording the total overhead"""
 
-    def __init__(self, store: SecStore, T: int, b: int):
+    def __init__(self, store: SecStore, T: int, b: int, /):
         self.store = store
         self.T = T
         self.b = b
@@ -144,7 +141,7 @@ class SecStoreManager:
                 print(f"{file_name} not found in SecStore\n{err}")
             else:
                 self.H += size // self.b * self.T
-                buffer_blocks.memory = data
+                buffer_blocks.memory[:] = data
         except ValueError as err:
             print(f"Size is not correct\n{err}")
 
@@ -164,4 +161,3 @@ class BufferPoolManager:
 
     def free(self, buffer_blocks: memory_ptr):
         buffer_blocks.memory.release()
-
