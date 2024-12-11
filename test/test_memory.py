@@ -9,7 +9,7 @@ def test_file():
     assert a == array('d', data[2:7])
 
     modi = list(random.random()  *100 for _ in range(3))
-    f.write(3, 6, array('d',modi))
+    f.write(3, 6, memory_ptr(memoryview(array('d',modi)), 0))
     assert f[3:6] == array('d', modi)
 
 def test_secstore():
