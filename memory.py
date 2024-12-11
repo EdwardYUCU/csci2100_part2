@@ -152,4 +152,4 @@ class BufferPoolManager:
         self.buffer_pool = buffer_pool
 
     def allocate(self, num_blocks: int) -> memoryview | None:
-        
+        pass
