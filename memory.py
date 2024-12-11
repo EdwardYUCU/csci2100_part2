@@ -119,13 +119,7 @@ class SecStoreManager:
         self.T = T
         self.H = 0
 
-    def read(
-        self,
-        file_name: str,
-        start: int,
-        size: int,
-        buffer_blocks: memoryview
-    ):
+    def read(self, file_name: str, start: int, size: int, buffer_blocks: memoryview):
         """Read the file in SecStore into BufferPool
         buffer_blocks is the write handle that need to be
         provided by the caller"""
