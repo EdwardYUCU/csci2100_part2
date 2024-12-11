@@ -2,6 +2,12 @@ from array import array
 import sys
 from copy import copy
 import collections.abc as abc
+from dataclasses import dataclass
+
+@dataclass
+class memory_ptr:
+    memory: memoryview
+    start_address: int
 
 
 class File(abc.MutableSequence):
@@ -34,8 +40,8 @@ class File(abc.MutableSequence):
     def read(self, start: int, size: int):
         return copy(self[start : start + size])
 
-    def write(self, start: int, size: int, data):
-        self[start : start + size] = data
+    def write(self, start: int, size: int, data: memory_ptr):
+        self[start : start + size] = data.memory.obj
 
 
 class SecStore(abc.MutableMapping):
@@ -84,8 +90,9 @@ class SecStore(abc.MutableMapping):
         """Read file from disk. Return a sequence."""
         return self[file_name].read(start, size)
 
-    def write(self, file_name: str, start: int, size: int, data):
+    def write(self, file_name: str, start: int, size: int, data: memory_ptr):
         "Write data to disk"
+        assert size == len(data.memory)
         self[file_name].write(start, size, data)
 
 
@@ -124,7 +131,7 @@ class SecStoreManager:
         self.b = b
         self.H = 0
 
-    def read(self, file_name: str, start: int, size: int, buffer_blocks: memoryview):
+    def read(self, file_name: str, start: int, size: int, buffer_blocks: memory_ptr):
         """Read the file in SecStore into BufferPool
         buffer_blocks is the write handle that need to be
         provided by the caller"""
@@ -137,11 +144,11 @@ class SecStoreManager:
                 print(f"{file_name} not found in SecStore\n{err}")
             else:
                 self.H += size // self.b * self.T
-                buffer_blocks = data
+                buffer_blocks.memory = data
         except ValueError as err:
             print(f"Size is not correct\n{err}")
 
-    def write(self, file_name: str, start: int, size: int, buffer_blocks):
+    def write(self, file_name: str, start: int, size: int, buffer_blocks: memory_ptr):
         self.store.write(start, size, buffer_blocks)
         self.H += size // self.b * self.T
 
@@ -152,8 +159,9 @@ class BufferPoolManager:
     def __init__(self, buffer_pool: BufferPool):
         self.buffer_pool = buffer_pool
 
-    def allocate(self, num_blocks: int) -> memoryview | None:
+    def allocate(self, num_blocks: int) -> memory_ptr | None:
         pass
 
-    def free(self, buffer_blocks: memoryview):
-        buffer_blocks.release()
+    def free(self, buffer_blocks: memory_ptr):
+        buffer_blocks.memory.release()
+
