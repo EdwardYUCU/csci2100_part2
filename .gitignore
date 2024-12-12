@@ -11,3 +11,5 @@ wheels/
 
 # Specs
 template/
+input/
+output/
