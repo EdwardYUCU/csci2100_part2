@@ -30,15 +30,20 @@ class memory_block:
                 key[0] + self.start_address, key[1] + self.start_address, key[2]
             )
             return self._memory[key]
+        if key >= self.size or key < 0:
+            raise IndexError("Index out of bound")
         return self._memory[self.start_address + key]
 
-    def __setitem__(self, position, obj):
+    def __setitem__(self, key, obj):
         if isinstance(key, slice):
             key = key.indices(self.size)
             key = slice(
                 key[0] + self.start_address, key[1] + self.start_address, key[2]
             )
             self._memory[key] = obj
+            return
+        if key >= self.size or key < 0:
+            raise IndexError("Index out of bound")
         self._memory[self.start_address + key] = obj
 
 
@@ -193,6 +198,7 @@ class BufferPoolManager:
             else:
                 count = 0
             if count == num_blocks:
+                self.buffer_pool.status[i - num_blocks + 1:i + 1] = [False] * num_blocks
                 return memory_block(self.buffer_pool, num_blocks, i - num_blocks + 1, self.buffer_pool.b)
 
     def free(self, buffer_blocks: memory_block):
