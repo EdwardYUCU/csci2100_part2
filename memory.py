@@ -1,14 +1,45 @@
-from array import array
 import sys
 from copy import copy
 import collections.abc as abc
 from dataclasses import dataclass
+import operator
 
 
-@dataclass
-class memory_ptr:
-    memory: memoryview
-    start_address: int
+@dataclass(frozen=True)
+class memory_block:
+    _memory: list[float]
+    _size: int
+    _start_address: int
+    _b: int = 1
+
+    @property
+    def size(self):
+        return self._size * self._b
+
+    @property
+    def start_address(self):
+        return self._start_address * self._b
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            key = key.indices(self.size)
+            key = slice(
+                key[0] + self.start_address, key[1] + self.start_address, key[2]
+            )
+            return self._memory[key]
+        return self._memory[self.start_address + key]
+
+    def __setitem__(self, position, obj):
+        if isinstance(key, slice):
+            key = key.indices(self.size)
+            key = slice(
+                key[0] + self.start_address, key[1] + self.start_address, key[2]
+            )
+            self._memory[key] = obj
+        self._memory[self.start_address + key] = obj
 
 
 class File(abc.MutableSequence):
@@ -16,7 +47,7 @@ class File(abc.MutableSequence):
 
     def __init__(self, name: str, data: abc.Iterable = (), /):
         """Initial a NAME object with DATA"""
-        self._data = array("d", list(data))
+        self._data = list(data)
         self._name = name
 
     def __len__(self):
@@ -39,12 +70,10 @@ class File(abc.MutableSequence):
         return self._name
 
     def read(self, start: int, size: int):
-        return copy(self[start : start + size])
+        return self[start : start + size].copy()
 
-    def write(self, start: int, size: int, data: memory_ptr):
-        self[start : start + size] = data.memory.obj[
-            data.start_address : data.start_address + size
-        ]
+    def write(self, start: int, size: int, data: memory_block):
+        self[start : start + size] = data[:]
 
 
 class SecStore(abc.MutableMapping):
@@ -93,9 +122,9 @@ class SecStore(abc.MutableMapping):
         """Read file from disk. Return a sequence."""
         return self[file_name].read(start, size)
 
-    def write(self, file_name: str, start: int, size: int, data: memory_ptr):
+    def write(self, file_name: str, start: int, size: int, data: memory_block):
         "Write data to disk"
-        assert size == len(data.memory)
+        assert size == len(data)
         self[file_name].write(start, size, data)
 
 
@@ -105,7 +134,7 @@ class BufferPool:
     def __init__(self, B, b, /):
         self.B = B
         self.b = b
-        self._memory = memoryview(array("d", [0] * B))
+        self._memory = [0] * B
         self.status = [True] * (B // b)
 
     def __len__(self):
@@ -128,7 +157,7 @@ class SecStoreManager:
         self.b = b
         self.H = 0
 
-    def read(self, file_name: str, start: int, size: int, buffer_blocks: memory_ptr):
+    def read(self, file_name: str, start: int, size: int, buffer_blocks: memory_block):
         """Read the file in SecStore into BufferPool
         buffer_blocks is the write handle that need to be
         provided by the caller"""
@@ -141,11 +170,11 @@ class SecStoreManager:
                 print(f"{file_name} not found in SecStore\n{err}")
             else:
                 self.H += size // self.b * self.T
-                buffer_blocks.memory[:] = data
+                buffer_blocks[:size] = data
         except ValueError as err:
             print(f"Size is not correct\n{err}")
 
-    def write(self, file_name: str, start: int, size: int, buffer_blocks: memory_ptr):
+    def write(self, file_name: str, start: int, size: int, buffer_blocks: memory_block):
         self.store.write(start, size, buffer_blocks)
         self.H += size // self.b * self.T
 
@@ -156,8 +185,18 @@ class BufferPoolManager:
     def __init__(self, buffer_pool: BufferPool):
         self.buffer_pool = buffer_pool
 
-    def allocate(self, num_blocks: int) -> memory_ptr | None:
-        pass
+    def allocate(self, num_blocks: int) -> memory_block:
+        count = 0
+        for i, status in enumerate(self.buffer_pool.status):
+            if status:
+                count += 1
+            else:
+                count = 0
+            if count == num_blocks:
+                return memory_block(self.buffer_pool, num_blocks, i - num_blocks + 1, self.buffer_pool.b)
 
-    def free(self, buffer_blocks: memory_ptr):
-        buffer_blocks.memory.release()
+    def free(self, buffer_blocks: memory_block):
+        self.buffer_pool.status[
+            buffer_blocks._start_address : buffer_blocks._start_address
+            + buffer_blocks._size
+        ] = [True] * buffer_blocks._size
