@@ -1,27 +1,51 @@
-import sys
-from copy import copy
 import collections.abc as abc
-from dataclasses import dataclass
 import operator
 
 
-@dataclass(frozen=True)
+class BufferPool:
+    """A limited main memory"""
+
+    def __init__(self, B, b, /):
+        self.B = B
+        self.b = b
+        self._memory = [0] * B
+        self.status = [True] * (B // b)
+
+    def __len__(self):
+        return self.B
+
+    def __getitem__(self, index):
+        return self._memory[index]
+
+    def __setitem__(self, index, obj):
+        self._memory[index] = obj
+
+
 class memory_block:
-    _memory: list[float]
-    _size: int
-    _start_address: int
-    _b: int = 1
+    def __init__(self, memory: BufferPool, size: int, start_address: int, b: int = 1):
+        self._memory = memory
+        self._size = size
+        self._start_address = start_address
+        self._b = b
+        self.offset = 0
+        self.modified = 0
 
     @property
     def size(self):
+        if self.modified:
+            return self.modified
         return self._size * self._b
+
+    @size.setter
+    def size(self, value):
+        self.modified = value
 
     @property
     def start_address(self):
-        return self._start_address * self._b
+        return self._start_address * self._b + self.offset
 
     def __len__(self):
-        return self.size
+        return self.size - self.offset
 
     def __getitem__(self, key):
         if isinstance(key, slice):
@@ -32,7 +56,7 @@ class memory_block:
             return self._memory[key]
         if key >= self.size or key < 0:
             raise IndexError("Index out of bound")
-        return self._memory[self.start_address + key]
+        return self._memory[self.start_address + operator.index(key)]
 
     def __setitem__(self, key, obj):
         if isinstance(key, slice):
@@ -44,13 +68,13 @@ class memory_block:
             return
         if key >= self.size or key < 0:
             raise IndexError("Index out of bound")
-        self._memory[self.start_address + key] = obj
+        self._memory[self.start_address + operator.index(key)] = obj
 
 
 class File(abc.MutableSequence):
     """The abstraction of the data in SecStore"""
 
-    def __init__(self, name: str, data: abc.Iterable = (), /):
+    def __init__(self, name: str, data=(), /):
         """Initial a NAME object with DATA"""
         self._data = list(data)
         self._name = name
@@ -70,15 +94,19 @@ class File(abc.MutableSequence):
     def insert(self, index, value):
         self._data.insert(index, value)
 
+    def __eq__(self, other):
+        return self._data == other
+
     @property
     def name(self) -> str:
         return self._name
 
     def read(self, start: int, size: int):
+        self[start]
         return self[start : start + size].copy()
 
     def write(self, start: int, size: int, data: memory_block):
-        self[start : start + size] = data[:]
+        self[start : start + size] = data[:size]
 
 
 class SecStore(abc.MutableMapping):
@@ -87,7 +115,6 @@ class SecStore(abc.MutableMapping):
     def __init__(self):
         self._disk: dict[str, File] = {
             "input": File("input", []),
-            "output": File("output", []),
         }
 
     def __getitem__(self, key):
@@ -129,27 +156,10 @@ class SecStore(abc.MutableMapping):
 
     def write(self, file_name: str, start: int, size: int, data: memory_block):
         "Write data to disk"
-        assert size == len(data)
-        self[file_name].write(start, size, data)
-
-
-class BufferPool:
-    """A limited main memory"""
-
-    def __init__(self, B, b, /):
-        self.B = B
-        self.b = b
-        self._memory = [0] * B
-        self.status = [True] * (B // b)
-
-    def __len__(self):
-        return self.B
-
-    def __getitem__(self, index):
-        return self._memory[index]
-
-    def __setitem__(self, index, obj):
-        self._memory[index] = obj
+        if file_name not in self:
+            self[file_name] = File(file_name, data[:size])
+        else:
+            self[file_name].write(start, size, data)
 
 
 class SecStoreManager:
@@ -162,25 +172,19 @@ class SecStoreManager:
         self.b = b
         self.H = 0
 
-    def read(self, file_name: str, start: int, size: int, buffer_blocks: memory_block):
+    def read(
+        self, file_name: str, start: int, size: int, buffer_blocks: memory_block
+    ) -> int:
         """Read the file in SecStore into BufferPool
         buffer_blocks is the write handle that need to be
         provided by the caller"""
-        try:
-            try:
-                data = self.store.read(file_name, start, size)
-            except IndexError as err:
-                print(f"Start position is invalid or size is too large\n{err}")
-            except KeyError as err:
-                print(f"{file_name} not found in SecStore\n{err}")
-            else:
-                self.H += size // self.b * self.T
-                buffer_blocks[:size] = data
-        except ValueError as err:
-            print(f"Size is not correct\n{err}")
+        data = self.store.read(file_name, start, size)
+        self.H += size // self.b * self.T
+        buffer_blocks[: len(data)] = data
+        return len(data)
 
     def write(self, file_name: str, start: int, size: int, buffer_blocks: memory_block):
-        self.store.write(start, size, buffer_blocks)
+        self.store.write(file_name, start, size, buffer_blocks)
         self.H += size // self.b * self.T
 
 
@@ -190,7 +194,7 @@ class BufferPoolManager:
     def __init__(self, buffer_pool: BufferPool):
         self.buffer_pool = buffer_pool
 
-    def allocate(self, num_blocks: int) -> memory_block:
+    def allocate(self, num_blocks: int) -> memory_block | None:
         count = 0
         for i, status in enumerate(self.buffer_pool.status):
             if status:
@@ -198,8 +202,13 @@ class BufferPoolManager:
             else:
                 count = 0
             if count == num_blocks:
-                self.buffer_pool.status[i - num_blocks + 1:i + 1] = [False] * num_blocks
-                return memory_block(self.buffer_pool, num_blocks, i - num_blocks + 1, self.buffer_pool.b)
+                self.buffer_pool.status[i - num_blocks + 1 : i + 1] = [
+                    False
+                ] * num_blocks
+                return memory_block(
+                    self.buffer_pool, num_blocks, i - num_blocks + 1, self.buffer_pool.b
+                )
+        return None
 
     def free(self, buffer_blocks: memory_block):
         self.buffer_pool.status[

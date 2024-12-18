@@ -6,28 +6,74 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
     buffer_pool = memory.BufferPool(B, b)
     buffer_pool_manager = memory.BufferPoolManager(buffer_pool)
     sec_store = memory.SecStore()
-    sec_man = memory.SecStoreManager(sec_store, T)
+    sec_man = memory.SecStoreManager(sec_store, T, b)
 
     sec_store.read_file(input_file)
 
     nums = buffer_pool_manager.allocate(B // b // 2)
-    buf = buffer_pool_manager.allocate(b // b // 2)
-    for k in range(0, N, B // 2):
+    buf = buffer_pool_manager.allocate(B // b // 2)
+
+    for i, k in enumerate(range(0, N, B // 2)):
         sec_man.read("input", k, B // 2, nums)
-        merge_sort(nums, buf, k, k + len(nums) - 1)
-        sec_man.write(f"sort{k}", k, B // 2, nums)
+        merge_sort(nums, buf, 0, len(nums) - 1)
+        sec_man.write(f"sort{i}", k, B // 2, nums)
+    buffer_pool_manager.free(nums)
+    buffer_pool_manager.free(buf)
 
     num_run = N // B * 2
     num_block = B // b
 
     block_per_run = num_block // (num_run + 1)
-    block_buf = num_block - num_run * block_per_run
+    block_buf = num_block - num_run * block_per_run - 1
     runs = []
     for k in range(0, num_run):
         runs.append(buffer_pool_manager.allocate(block_per_run))
         sec_man.read(f"sort{k}", 0, block_per_run * b, runs[k])
-    
+
     buf = buffer_pool_manager.allocate(block_buf)
+    compare = buffer_pool_manager.allocate(1)
+    j = 0
+    for k in range(0, num_run):
+        compare[k] = runs[k][0]
+    output_pos = 0
+    runs_count = [block_per_run * b] * num_run
+
+    while True:
+        smallest = min(compare[:num_run])
+        if smallest == float("inf"):
+            sec_man.write("output", output_pos, j, buf)
+            break
+
+        small_pos = compare[:num_run].index(smallest)
+
+        buf[j] = smallest
+        j += 1
+        runs[small_pos].offset += 1
+
+        for k in range(0, num_run):
+            if len(runs[k]) == 0:
+                runs[k].offset = 0
+                try:
+                    length = sec_man.read(
+                        f"sort{k}", runs_count[k], block_per_run * b, runs[k]
+                    )
+                except IndexError:
+                    runs[k][0] = float("inf")
+                    compare[k] = float("inf")
+                    continue
+                finally:
+                    runs[k].size = length
+
+                runs_count[k] += block_per_run * b
+            compare[k] = runs[k][0]
+
+        if j == block_buf * b:
+            # print(output_pos)
+            sec_man.write("output", output_pos, j, buf)
+            output_pos += j
+            j = 0
+    sec_store.write_file(output_file)
+    print(sec_man.H)
 
 
 def merge(nums, buf, left: int, mid: int, right: int):
@@ -55,6 +101,7 @@ def merge(nums, buf, left: int, mid: int, right: int):
     for k in range(left, right + 1):
         nums[k] = buf[k]
 
+
 def merge_sort(nums, buf, left: int, right: int):
     """Merge sort the array"""
 
@@ -65,6 +112,7 @@ def merge_sort(nums, buf, left: int, right: int):
     merge_sort(nums, buf, mid + 1, right)
     merge(nums, buf, left, mid, right)
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Path to input file")
@@ -72,8 +120,8 @@ def main():
     args = parser.parse_args()
 
     # Parameters
-    B = 10000  # Buffer pool size in words
-    b = 250  # Block size in words
+    B = 40000  # Buffer pool size in words
+    b = 200  # Block size in words
     N = 200000  # Number of records
     T = 64  # Relative time taken for secStore access
 

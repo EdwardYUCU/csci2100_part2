@@ -11,5 +11,8 @@ wheels/
 
 # Specs
 template/
-input/
-output/
+inputs/
+outputs/
+
+#vscode
+.vscode/
