@@ -3,16 +3,20 @@ import argparse
 
 
 def external_merge_sort(B, b, N, T, input_file, output_file):
+    """Perform external merge sort on the input file and write the sorted data to the output file."""
     buffer_pool = memory.BufferPool(B, b)
     buffer_pool_manager = memory.BufferPoolManager(buffer_pool)
     sec_store = memory.SecStore()
     sec_man = memory.SecStoreManager(sec_store, T, b)
 
+    # Read input file into SecStore
     sec_store.read_file(input_file)
 
+    # Allocate memory blocks for sorting
     nums = buffer_pool_manager.allocate(B // b // 2)
     buf = buffer_pool_manager.allocate(B // b // 2)
 
+    # Perform initial sorting of chunks
     for i, k in enumerate(range(0, N, B // 2)):
         sec_man.read("input", k, B // 2, nums)
         merge_sort(nums, buf, 0, len(nums) - 1)
@@ -39,6 +43,7 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
     runs_count = [block_per_run * b] * num_run
     print(num_run, num_block, block_per_run, block_buf)
 
+    # Merge sorted runs
     while True:
         smallest = min(compare[:num_run])
         if smallest == float("inf"):
@@ -69,7 +74,6 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
             compare[k] = runs[k][0]
 
         if j == block_buf * b:
-            # print(output_pos)
             sec_man.write("output", output_pos, j, buf)
             output_pos += j
             j = 0
@@ -78,7 +82,7 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
 
 
 def merge(nums, buf, left: int, mid: int, right: int):
-    """merge the two sub array"""
+    """Merge the two subarrays."""
     i, j, k = left, mid + 1, left
 
     while i <= mid and j <= right:
@@ -104,8 +108,7 @@ def merge(nums, buf, left: int, mid: int, right: int):
 
 
 def merge_sort(nums, buf, left: int, right: int):
-    """Merge sort the array"""
-
+    """Merge sort the array."""
     if left >= right:
         return
     mid = (left + right) // 2
@@ -115,6 +118,7 @@ def merge_sort(nums, buf, left: int, right: int):
 
 
 def main():
+    """Main function to parse arguments and call external_merge_sort."""
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Path to input file")
     parser.add_argument("output", help="Path to output file")

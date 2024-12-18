@@ -12,6 +12,7 @@ import pytest
 
 
 def test_file():
+    """Test the File class read and write operations."""
     data = list(random.random() * 100 for _ in range(10))
     f = File("f", data)
     a = f.read(2, 5)
@@ -23,6 +24,7 @@ def test_file():
 
 
 def test_secstore():
+    """Test the SecStore class read and write operations."""
     input_file = "inputs/inputs.txt"
     output_file = "outputs/sorted.txt"
     sec = SecStore()
@@ -37,6 +39,7 @@ def test_secstore():
 
 
 def test_allocation():
+    """Test the BufferPoolManager allocation and deallocation."""
     buffer_pool = BufferPool(10000, 100)
     buffer_man = BufferPoolManager(buffer_pool)
     l = buffer_man.allocate(20)
@@ -66,6 +69,7 @@ def test_allocation():
 
 
 def test_read():
+    """Test the SecStoreManager read operation."""
     input_file = "inputs/inputs.txt"
     output_file = "outputs/sorted.txt"
     sec = SecStore()
@@ -87,6 +91,7 @@ def test_read():
 
 
 def test_read_write_partial():
+    """Test the SecStoreManager partial read and write operations."""
     B, b, T, N = 10000, 100, 2, 200000
     input_file = "inputs/inputs.txt"
 
@@ -108,6 +113,7 @@ def test_read_write_partial():
 
 
 def test_sort():
+    """Test the external merge sort functionality."""
     B, b, T, N = 10000, 100, 2, 200000
     input_file = "inputs/inputs.txt"
 
