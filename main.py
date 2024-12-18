@@ -20,7 +20,7 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
     buffer_pool_manager.free(nums)
     buffer_pool_manager.free(buf)
 
-    num_run = N // B * 2
+    num_run = N // (B // 2)
     num_block = B // b
 
     block_per_run = num_block // (num_run + 1)
@@ -37,6 +37,7 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
         compare[k] = runs[k][0]
     output_pos = 0
     runs_count = [block_per_run * b] * num_run
+    print(num_run, num_block, block_per_run, block_buf)
 
     while True:
         smallest = min(compare[:num_run])
@@ -120,7 +121,7 @@ def main():
     args = parser.parse_args()
 
     # Parameters
-    B = 40000  # Buffer pool size in words
+    B = 80000  # Buffer pool size in words
     b = 200  # Block size in words
     N = 200000  # Number of records
     T = 64  # Relative time taken for secStore access

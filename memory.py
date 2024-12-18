@@ -179,7 +179,7 @@ class SecStoreManager:
         buffer_blocks is the write handle that need to be
         provided by the caller"""
         data = self.store.read(file_name, start, size)
-        self.H += size // self.b * self.T
+        self.H += len(data) // self.b * self.T
         buffer_blocks[: len(data)] = data
         return len(data)
 
