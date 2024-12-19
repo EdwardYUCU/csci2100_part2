@@ -41,7 +41,6 @@ def external_merge_sort(B, b, N, T, input_file, output_file):
         compare[k] = runs[k][0]
     output_pos = 0
     runs_count = [block_per_run * b] * num_run
-    print(num_run, num_block, block_per_run, block_buf)
 
     # Merge sorted runs
     while True:
@@ -125,12 +124,16 @@ def main():
     args = parser.parse_args()
 
     # Parameters
-    B = 80000  # Buffer pool size in words
-    b = 200  # Block size in words
+    Bs = [80000, 40000, 20000, 10000]  # Buffer pool size in words
+    bs = [100, 200]  # Block size in words
     N = 200000  # Number of records
-    T = 64  # Relative time taken for secStore access
+    Ts = [1, 4, 16, 128, 512]  # Relative time taken for secStore access
 
-    external_merge_sort(B, b, N, T, args.input, args.output)
+    for b in bs:
+        for B in Bs:
+            for T in Ts:
+                print(f"B={B}, b={b}, T={T}")
+                external_merge_sort(B, b, N, T, args.input, args.output)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import collections.abc as abc
 import operator
+import math
 
 
 class BufferPool:
@@ -185,14 +186,14 @@ class SecStoreManager:
         buffer_blocks is the write handle that needs to be
         provided by the caller."""
         data = self.store.read(file_name, start, size)
-        self.H += len(data) // self.b * self.T
+        self.H += math.ceil(len(data) / self.b) * self.T
         buffer_blocks[: len(data)] = data
         return len(data)
 
     def write(self, file_name: str, start: int, size: int, buffer_blocks: memory_block):
         """Write data from BufferPool to SecStore."""
         self.store.write(file_name, start, size, buffer_blocks)
-        self.H += size // self.b * self.T
+        self.H += math.ceil(size / self.b) * self.T
 
 
 class BufferPoolManager:
