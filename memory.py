@@ -23,7 +23,9 @@ class BufferPool:
 
 
 class memory_block:
-    """A block of memory in the BufferPool."""
+    """A block of memory in the BufferPool.
+    It's actually a wrapper of the starting address in bufferpool.
+    I make it a class so that it can encapsulate the offset and modified size."""
 
     def __init__(self, memory: BufferPool, size: int, start_address: int, b: int = 1):
         self._memory = memory
